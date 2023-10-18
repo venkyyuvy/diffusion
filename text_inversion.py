@@ -14,6 +14,7 @@ from torchvision import transforms as tfms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer, logging, CLIPVisionModel,\
  CLIPProcessor, CLIPModel, CLIPVisionModelWithProjection, CLIPTextModelWithProjection
+from torchvision.transforms import functional as F
 
 import os
 
@@ -98,45 +99,25 @@ latents = torch.randn(
 latents = latents.to(torch_device)
 latents = latents * scheduler.init_noise_sigma
 
+# additional textual prompt
+textual_direction = "evening sunlight"
+inputs = processor(text=textual_direction,
+                   return_tensors="pt",
+                   padding=True)
+with torch.no_grad():
+    text_embed = CLIPTextModelWithProjection.from_pretrained(
+        clip_model_name)(**inputs).text_embeds.to(torch_device)
 
-#
-    # text_input = tokenizer([textual_direction],
-    #                        padding="max_length",
-    #                        max_length=tokenizer.model_max_length,
-    #                        truncation=True,
-    #                        return_tensors="pt")
-# cos_similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
-    # return cos_similarity(img_embed, text_embed)[0]
-def cosine_loss(gen_image):
-    textual_direction = "evening sunlight"
-    inputs = processor(text=textual_direction,
-                       return_tensors="pt",
-                       padding=True)
-    with torch.no_grad():
-        text_embed = CLIPTextModelWithProjection.from_pretrained(
-            clip_model_name)(**inputs).text_embeds
+def cosine_loss(gen_image, text_embed=text_embed):
+
     gen_image_clamped = gen_image.clamp(0, 1).mul(255).round()
-    inputs = processor(images=gen_image_clamped,
-                       return_tensors="pt",
-                       padding=True)
     image_embed = CLIPVisionModelWithProjection.from_pretrained(
-        clip_model_name)(**inputs).image_embeds
-    image_embed.requires_grad = True
-    similarity = nn.functional.cosine_similarity(text_embed, image_embed)[0]
-    print(similarity)
+        clip_model_name).to(torch_device)\
+    (F.resize(gen_image_clamped, (224, 224))).image_embeds
+    similarity = nn.functional.cosine_similarity(
+        text_embed, image_embed)[0]
     return 1 - similarity
 
-# def cosine_loss(gen_image):
-#     gen_image_clamped = gen_image.clamp(0, 1).mul(255).round()
-#     textual_direction = "evening lightning"
-#     inputs = processor(text=textual_direction,
-#                        images=gen_image_clamped,
-#                        return_tensors="pt",
-#                        padding=True)
-#     return 1 - clip_model(**inputs).logits_per_image
-#
-
-# Loop
 for i, t in tqdm(enumerate(scheduler.timesteps), total=len(scheduler.timesteps)):
     # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
     latent_model_input = torch.cat([latents] * 2)
