@@ -34,8 +34,10 @@ vae = AutoencoderKL.from_pretrained(
 # Load the tokenizer and text encoder to tokenize and encode the text.
 clip_model_name = "openai/clip-vit-large-patch14"
 tokenizer = CLIPTokenizer.from_pretrained(clip_model_name)
-text_encoder = CLIPTextModel.from_pretrained(clip_model_name).to(torch_device);
-vision_encoder = CLIPVisionModelWithProjection.from_pretrained(clip_model_name).to(torch_device);
+text_encoder = CLIPTextModel.from_pretrained(
+    clip_model_name).to(torch_device);
+vision_encoder = CLIPVisionModelWithProjection.from_pretrained(
+    clip_model_name).to(torch_device);
 processor = CLIPProcessor.from_pretrained(clip_model_name)
 
 # The UNet model for generating the latents.

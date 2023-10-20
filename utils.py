@@ -1,8 +1,19 @@
+import os
 import torch
 from PIL import Image
 from diffusers import AutoencoderKL
 
-vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae").to("mps:0")
+torch_device = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "mps"
+    if torch.backends.mps.is_available()
+    else "cpu"
+)
+if "mps" == torch_device:
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae").to(torch_device)
 
 def pil_to_latent(input_im):
     # Single image -> single latent in a batch (so size 1, 4, 64, 64)

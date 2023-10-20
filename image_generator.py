@@ -298,6 +298,8 @@ def generate_image_per_loss(
         prompt, style_embed, style_seed, style_embedding_key,
         loss, additional_prompt
     ):
+
+    prompt = f"{prompt} <{style_embedding_key}>"
     gen_out_loss_image = None
 
     # Tokenize
