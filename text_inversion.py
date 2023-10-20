@@ -14,7 +14,7 @@ from torchvision import transforms as tfms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer, logging, CLIPVisionModel,\
  CLIPProcessor, CLIPModel, CLIPVisionModelWithProjection, CLIPTextModelWithProjection
-from torchvision.transforms import functional as F
+import torch.nn.functional as F
 
 import os
 
@@ -42,9 +42,8 @@ vae = AutoencoderKL.from_pretrained(
 clip_model_name = "openai/clip-vit-large-patch14"
 tokenizer = CLIPTokenizer.from_pretrained(clip_model_name)
 text_encoder = CLIPTextModel.from_pretrained(clip_model_name).to(torch_device);
-vision_encoder = CLIPVisionModel.from_pretrained(clip_model_name).to(torch_device);
+vision_encoder = CLIPVisionModelWithProjection.from_pretrained(clip_model_name).to(torch_device);
 processor = CLIPProcessor.from_pretrained(clip_model_name)
-clip_model = CLIPModel.from_pretrained(clip_model_name)
 
 # The UNet model for generating the latents.
 unet = UNet2DConditionModel.from_pretrained(
@@ -62,14 +61,18 @@ def blue_loss(images):
     error = torch.abs(images[:,2] - 0.9).mean() # [:,2] -> all images in batch, only the blue channel
     return error
 
-prompt = 'A campfire (oil on canvas)' #@param
+# prompt = 'A campfire (oil on canvas)' #@param
+prompt = 'a dog is going for a walking' #@param
 height = 512                        # default height of Stable Diffusion
 width = 512                         # default width of Stable Diffusion
+# height = 224                        # default height of Stable Diffusion
+# width = 224                         # default width of Stable Diffusion
 num_inference_steps = 50  #@param           # Number of denoising steps
 guidance_scale = 8 #@param               # Scale for classifier-free guidance
-generator = torch.manual_seed(32)   # Seed generator to create the inital latent noise
+generator = torch.manual_seed(2)   # Seed generator to create the inital latent noise
 batch_size = 1
-blue_loss_scale = 200 #@param
+loss_scale = 20 #@param
+additional_guidance_freq = 3
 
 text_input = tokenizer([prompt],
                        padding="max_length",
@@ -100,7 +103,7 @@ latents = latents.to(torch_device)
 latents = latents * scheduler.init_noise_sigma
 
 # additional textual prompt
-textual_direction = "evening sunlight"
+textual_direction = "mountain background"
 inputs = processor(text=textual_direction,
                    return_tensors="pt",
                    padding=True)
@@ -110,13 +113,15 @@ with torch.no_grad():
 
 def cosine_loss(gen_image, text_embed=text_embed):
 
-    gen_image_clamped = gen_image.clamp(0, 1).mul(255).round()
-    image_embed = CLIPVisionModelWithProjection.from_pretrained(
-        clip_model_name).to(torch_device)\
-    (F.resize(gen_image_clamped, (224, 224))).image_embeds
-    similarity = nn.functional.cosine_similarity(
-        text_embed, image_embed)[0]
-    return 1 - similarity
+    gen_image_clamped = gen_image.clamp(0, 1).mul(255)
+    resized_image = F.interpolate(gen_image_clamped,
+                                  size=(224, 224),
+                                  mode='bilinear',
+                                  align_corners=False)
+    image_embed = vision_encoder(resized_image).image_embeds
+    similarity = F.cosine_similarity(text_embed, image_embed, dim=1)
+    loss = 1 - similarity.mean()
+    return loss
 
 for i, t in tqdm(enumerate(scheduler.timesteps), total=len(scheduler.timesteps)):
     # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
@@ -133,24 +138,24 @@ for i, t in tqdm(enumerate(scheduler.timesteps), total=len(scheduler.timesteps))
     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
     #### ADDITIONAL GUIDANCE ###
-    if i%5 == 0:
+    if i % additional_guidance_freq == 0:
         # Requires grad on the latents
         latents = latents.detach().requires_grad_()
 
         # Get the predicted x0:
-        latents_x0 = latents - sigma * noise_pred
-        # stepper = scheduler.step(noise_pred, t, latents)
-        # latents_x0 = stepper.pred_original_sample
+        # latents_x0 = latents - sigma * noise_pred
+        stepper = scheduler.step(noise_pred, t, latents)
+        latents_x0 = stepper.pred_original_sample
 
         # Decode to image space
         denoised_images = vae.decode((1 / 0.18215) * latents_x0).sample / 2 + 0.5 # range (0, 1)
 
         # Calculate loss
-        # loss = blue_loss(denoised_images) * blue_loss_scale
-        loss = cosine_loss(denoised_images) * blue_loss_scale
+        # loss = blue_loss(denoised_images) * loss_scale
+        loss = cosine_loss(denoised_images) * loss_scale
 
         # Occasionally print it out
-        if (i + 1) % 10==0:
+        if (i) % 10==0:
             print(i, 'loss:', loss.item())
 
         # Get gradient
@@ -159,7 +164,7 @@ for i, t in tqdm(enumerate(scheduler.timesteps), total=len(scheduler.timesteps))
 
         # Modify the latents based on this gradient
         latents = latents.detach() - cond_grad * sigma**2
-        # scheduler._step_index = scheduler._step_index - 1
+        scheduler._step_index = scheduler._step_index - 1
 
         # Now step with scheduler
     latents = scheduler.step(noise_pred, t, latents).prev_sample
