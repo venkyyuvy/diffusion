@@ -1,20 +1,13 @@
 from utils import latents_to_pil
 
 import torch
-import torch.nn as nn
 from diffusers import AutoencoderKL, LMSDiscreteScheduler, UNet2DConditionModel
-from huggingface_hub import notebook_login
 
-# For video display:
-from IPython.display import HTML
-from matplotlib import pyplot as plt
 from pathlib import Path
-from PIL import Image
-from torchvision import transforms as tfms
 from tqdm.auto import tqdm
-from transformers import CLIPTextModel, CLIPTokenizer, logging, CLIPVisionModel,\
- CLIPProcessor, CLIPModel, CLIPVisionModelWithProjection, CLIPTextModelWithProjection
-import torch.nn.functional as F
+from transformers import CLIPTextModel, CLIPTokenizer, logging, \
+ CLIPProcessor, CLIPVisionModelWithProjection, CLIPTextModelWithProjection
+from loss import cosine_loss, get_text_embed
 
 import os
 
@@ -56,17 +49,11 @@ scheduler = LMSDiscreteScheduler(beta_start=0.00085,
                                  num_train_timesteps=1000)
 
 
-def blue_loss(images):
-    # How far are the blue channel values to 0.9:
-    error = torch.abs(images[:,2] - 0.9).mean() # [:,2] -> all images in batch, only the blue channel
-    return error
 
 # prompt = 'A campfire (oil on canvas)' #@param
 prompt = 'a dog is going for a walking' #@param
 height = 512                        # default height of Stable Diffusion
 width = 512                         # default width of Stable Diffusion
-# height = 224                        # default height of Stable Diffusion
-# width = 224                         # default width of Stable Diffusion
 num_inference_steps = 50  #@param           # Number of denoising steps
 guidance_scale = 8 #@param               # Scale for classifier-free guidance
 generator = torch.manual_seed(2)   # Seed generator to create the inital latent noise
@@ -103,7 +90,7 @@ latents = latents.to(torch_device)
 latents = latents * scheduler.init_noise_sigma
 
 # additional textual prompt
-textual_direction = "mountain background"
+textual_direction = "inside a house"
 inputs = processor(text=textual_direction,
                    return_tensors="pt",
                    padding=True)
@@ -111,17 +98,7 @@ with torch.no_grad():
     text_embed = CLIPTextModelWithProjection.from_pretrained(
         clip_model_name)(**inputs).text_embeds.to(torch_device)
 
-def cosine_loss(gen_image, text_embed=text_embed):
 
-    gen_image_clamped = gen_image.clamp(0, 1).mul(255)
-    resized_image = F.interpolate(gen_image_clamped,
-                                  size=(224, 224),
-                                  mode='bilinear',
-                                  align_corners=False)
-    image_embed = vision_encoder(resized_image).image_embeds
-    similarity = F.cosine_similarity(text_embed, image_embed, dim=1)
-    loss = 1 - similarity.mean()
-    return loss
 
 for i, t in tqdm(enumerate(scheduler.timesteps), total=len(scheduler.timesteps)):
     # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.

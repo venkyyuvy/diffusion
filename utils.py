@@ -21,3 +21,10 @@ def latents_to_pil(latents, torch_device="mps:0"):
     pil_images = [Image.fromarray(image) for image in images]
     return pil_images
 
+def load_embedding_bin(path):
+    return torch.load(path)
+
+#  Prep Scheduler
+def set_timesteps(scheduler, num_inference_steps):
+    scheduler.set_timesteps(num_inference_steps)
+    scheduler.timesteps = scheduler.timesteps.to(torch.float32) # minor fix to ensure MPS compatibility, fixed in diffusers PR 3925
