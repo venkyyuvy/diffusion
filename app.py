@@ -26,7 +26,7 @@ gr_interface = gr.Interface(
         gr.Textbox("cat running", label="Prompt"),
         gr.Dropdown(
             [
-                "illustration_style",
+                "illustration-style",
                 "line-art",
                 "hitokomoru-style",
                 "midjourney-style",
@@ -60,8 +60,8 @@ gr_interface = gr.Interface(
     ],
     title=title,
     examples=[
-        ["A flying bird", "illustration_style", "blue_loss", ""],
-        ["cat running", "on a city road", "cosine_loss", ""]
+        ["A flying bird", "illustration-style", "blue_loss", ""],
+        ["cat running", "line-art", "cosine_loss", "on a city road"]
     ]
 )
 gr_interface.launch(debug=True)
