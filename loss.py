@@ -1,5 +1,5 @@
 import torch
-
+import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.transforms import v2
 from transformers import CLIPTextModel, CLIPTokenizer, \
@@ -45,14 +45,18 @@ def get_text_embed(prompt = "on a mountain"):
 #     modified_output_embeddings = get_output_embeds(input_embeddings)
 #     return modified_output_embeddings
 
-text_embed = get_text_embed()
-def cosine_loss(gen_image, text_embed=text_embed):
-    gen_image_clamped = gen_image.clamp(0, 1).mul(255)
-    resized_image = v2.Resize(224)(gen_image_clamped)
-    image_embed = vision_encoder(resized_image).image_embeds
-    similarity = F.cosine_similarity(text_embed, image_embed, dim=1)
-    loss = 1 - similarity.mean()
-    return loss
+class cosine_loss(nn.Module):
+    def __init__(self, prompt) -> None:
+        self.text_embed = get_text_embed(prompt)
+        super().__init__()
+
+    def forward(self, gen_image):
+        gen_image_clamped = gen_image.clamp(0, 1).mul(255)
+        resized_image = v2.Resize(224)(gen_image_clamped)
+        image_embed = vision_encoder(resized_image).image_embeds
+        similarity = F.cosine_similarity(self.text_embed, image_embed, dim=1)
+        loss = 1 - similarity.mean()
+        return loss
 
 def blue_loss(images):
     # How far are the blue channel values to 0.9:

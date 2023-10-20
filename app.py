@@ -18,12 +18,12 @@ torch_device = (
 if "mps" == torch_device:
     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 # Define Interface
-title = "Generative Art - Stable Diffusion with Styles and Blue Loss"
+title = "Generative Art - Stable Diffusion with Styles and additional guidance"
 
 gr_interface = gr.Interface(
     generate_image_per_prompt_style,
     inputs=[
-        gr.Textbox("A flying bird", label="Prompt"),
+        gr.Textbox("cat running", label="Prompt"),
         gr.Dropdown(
             [
                 "illustration_style",
@@ -34,17 +34,18 @@ gr_interface = gr.Interface(
                 "birb-style",
                 "style-of-marc-allante",
             ],
-            value="illustration-style",
+            value="birb-style",
             label="Pre-trained Styles",
         ),
         gr.Dropdown(
             [
                 "blue_loss",
-                "additional_context",
+                "cosine_loss",
             ],
-            value="additional_context",
+            value="cosine_loss",
             label="Additional guidance for image generation",
         ),
+        gr.Textbox("on a city road", label="Additional Prompt"),
     ],
     outputs=[
         gr.Gallery(
@@ -58,5 +59,11 @@ gr_interface = gr.Interface(
         )
     ],
     title=title,
+    examples=[
+        ["A flying bird", "illustration_style", "blue_loss", ""],
+        ["cat running", "on a city road", "cosine_loss", ""]
+    ]
 )
 gr_interface.launch(debug=True)
+
+
