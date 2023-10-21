@@ -164,7 +164,7 @@ def generate_image_from_embeddings(
         loss_selection, additional_prompt):
     height = 512
     width = 512
-    num_inference_steps = 50
+    num_inference_steps = 20
     guidance_scale = 8
     generator = torch.manual_seed(seed)
     batch_size = 1
@@ -221,7 +221,7 @@ def generate_image_from_embeddings(
         )
 
         #### ADDITIONAL GUIDANCE ###
-        if i % 5 == 0:
+        if i % 3 == 0:
             # Requires grad on the latents
             latents = latents.detach().requires_grad_()
 
@@ -299,7 +299,7 @@ def generate_image_per_loss(
         loss, additional_prompt
     ):
 
-    prompt = f"{prompt} <{style_embedding_key}>"
+    prompt = f"{prompt} {style_embedding_key}"
     gen_out_loss_image = None
 
     # Tokenize

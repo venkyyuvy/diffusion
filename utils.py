@@ -13,7 +13,8 @@ torch_device = (
 if "mps" == torch_device:
     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
-vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae").to(torch_device)
+vae = AutoencoderKL.from_pretrained(
+    "CompVis/stable-diffusion-v1-4", subfolder="vae").to(torch_device)
 
 def pil_to_latent(input_im):
     # Single image -> single latent in a batch (so size 1, 4, 64, 64)
@@ -21,7 +22,7 @@ def pil_to_latent(input_im):
         latent = vae.encode(tfms.ToTensor()(input_im).unsqueeze(0).to(torch_device)*2-1) # Note scaling
     return 0.18215 * latent.latent_dist.sample()
 
-def latents_to_pil(latents, torch_device="mps:0"):
+def latents_to_pil(latents, torch_device=torch_device):
     # bath of latents -> list of images
     latents = (1 / 0.18215) * latents
     with torch.no_grad():
